@@ -1,0 +1,1199 @@
+1) App Summary
+App Type & Purpose
+
+ZemNet is a community Wi-Fi access marketplace for Burkina Faso. It enables Hosts (Wi-Fi owners) to sell short internet access passes and Users to discover nearby hotspots, pay via mobile money or platform wallet credit, receive a voucher, and connect through a captive portal. Access control is enforced locally on the router (OpenWrt + openNDS) using offline-verifiable vouchers, so connections remain reliable even when mobile data is weak.
+
+Non-goals (out of scope for v1)
+
+A full Admin mobile application (Ops is web-first; minimal internal tools only).
+
+Full offline payment processing (payments require provider confirmation; only voucher validation is offline).
+
+Advanced fraud/ML, automated chargebacks, complex dispute workflows (basic manual tools only).
+
+Multi-currency and tax-grade accounting.
+
+Roaming federation (Passpoint/Hotspot 2.0) and RADIUS-based enterprise authentication.
+
+Ed25519/COSE voucher signing (v1 uses HS256; upgrade later).
+
+2) Users & Roles
+Guest (not logged in)
+
+Can discover hotspots (map/list) without login.
+
+Cannot purchase until logged in (recommended), or can purchase with minimal OTP step at checkout.
+
+User (Buyer)
+
+OTP login, profile basics.
+
+View hotspot details (GPS pin + landmark text) and host-defined plans.
+
+Purchase via Wave/Orange/Moov or pay with Wallet Credit.
+
+Store vouchers offline; open connect help; copy code / view QR.
+
+View purchase history and wallet ledger.
+
+Receive and confirm cash-in requests initiated by hosts.
+
+Host (Seller)
+
+Complete KYC + payout method.
+
+Claim router via QR and configure hotspot metadata.
+
+Create/update host-defined plans; pause sales.
+
+Accept cash and initiate cash-in to credit a user’s wallet (expires in 10 minutes).
+
+View cash-in history, sessions (approx), earnings, payouts.
+
+Admin/Ops (optional, web-first)
+
+Approve/reject KYC; freeze/unfreeze hosts.
+
+Configure platform fee rates, cash-in commission rates, limits.
+
+Review suspicious cash-ins; manual reversals/refunds.
+
+Run payout batches and troubleshoot failures.
+
+3) Core Features (5–7)
+
+Hotspot Discovery (No Login Required)
+
+Map and low-data list of nearby online hotspots using GPS pins + landmark-only descriptions.
+
+Host-Defined Plans & Sales Controls
+
+Hosts create and manage pricing plans (time/data/price), and can pause/resume sales.
+
+Pass Purchase (Mobile Money + Wallet Credit)
+
+Users pay via Wave/Orange/Moov or spend wallet credit; voucher is delivered instantly after confirmation.
+
+Platform Wallet Credit (Cash-In + Spend Anywhere)
+
+Any KYC-approved host can accept cash and initiate a wallet credit for a user; the user confirms; credit is usable at any host.
+
+Policy: Wallet credit is not refundable to cash.
+
+Offline Voucher Wallet + Captive Portal Connect
+
+Vouchers stored securely on-device; users can connect even when the app has no internet (router validates offline).
+
+One-Device-Per-Voucher Enforcement
+
+Each voucher can be used by exactly one device (MAC binding on first use, enforced by the router).
+
+Earnings & Payouts
+
+Hosts see sales/fees/commission summaries and receive scheduled payouts; payout states are transparent.
+
+4) Primary User Journeys (at least 2)
+Journey A — Discover → Buy pass → Connect (Happy Path)
+
+Guest opens app → sees hotspots on Map/List (no login).
+
+Select hotspot → view host-defined plans → choose plan.
+
+App prompts OTP login to purchase (if not logged in).
+
+Choose payment method (Wave/Orange/Moov or Wallet).
+
+On success → voucher shown (QR + code) and saved to wallet.
+
+User joins SSID → captive portal opens → enters voucher.
+
+Router validates voucher offline; binds voucher to device (first MAC); grants access.
+
+Edge case: Payment is completed but webhook confirmation is delayed → Payment Status shows “En attente” with refresh, “J’ai payé”, and Support link; voucher appears once confirmed.
+
+Journey B — Cash top-up at Host A → Spend at Host B (Happy Path)
+
+User opens Wallet → shows Top-up QR (user identifier).
+
+Host A selects “Recharger un client” → scans QR or enters phone → enters amount → collects cash.
+
+Cash-in request created (expires in 10 minutes).
+
+User receives notification/request → confirms.
+
+Wallet balance increases by the full cash amount.
+
+User buys a pass at Host B using Wallet → voucher issued → connect through portal.
+
+Edge case: User does not confirm within 10 minutes → request expires; host sees “Expiré” and can re-initiate.
+
+5) Information Architecture (IA) (site map / screen list)
+
+Routes shown for Expo Router. “Label” refers to tab label where applicable.
+
+Auth & Onboarding
+
+Welcome / Mode Select — /(auth)/welcome — Language + brief intro.
+
+Phone Number — /(auth)/phone — Start OTP.
+
+OTP Verify — /(auth)/otp — Verify & sign in.
+
+Profile Setup — /(auth)/profile — Name/consents (optional).
+
+User Mode (Tabs)
+
+Map — /(app)/(user)/map (Tab: “Carte”) — Nearby hotspots (pins).
+
+List — /(app)/(user)/list (Tab: “Liste”) — Low-data discovery.
+
+Hotspot Details — /(app)/(user)/hotspots/[id] — Plans + buy.
+
+Wallet — /(app)/(user)/wallet (Tab: “Portefeuille”) — Balance + vouchers.
+
+Top-up QR — /(app)/(user)/wallet/topup-qr — Show QR/ID for cash-in.
+
+Top-up Requests — /(app)/(user)/wallet/topup-requests — Pending confirmations.
+
+Top-up Request Details — /(app)/(user)/wallet/topup-requests/[id] — Confirm/deny.
+
+Voucher Details — /(app)/(user)/wallet/[voucherId] — QR/code + expiry.
+
+History — /(app)/(user)/history (Tab: “Historique”) — Purchases/receipts.
+
+Connect Help — /(app)/(user)/connect-help — Captive portal guide.
+
+Payment Method — /(app)/(user)/payment/method — Provider vs Wallet.
+
+Payment Status — /(app)/(user)/payment/status — Pending/success/fail.
+
+Payment Success — /(app)/(user)/payment/success — Voucher issued.
+
+Host Mode (Tabs)
+
+Host Start — /(app)/(host)/start (Tab: “Hôte”) — Become host.
+
+KYC — /(app)/(host)/kyc — Identity + payout setup.
+
+Host Dashboard — /(app)/(host)/dashboard — Online + KPIs.
+
+Claim Router — /(app)/(host)/claim — QR claim.
+
+Hotspot Setup — /(app)/(host)/setup — Name/landmark/hours/limits.
+
+Hotspot Management — /(app)/(host)/hotspot/[id] — Plans + sales toggle.
+
+Plan Editor (Modal) — /(modal)/plan-editor — Create/edit plan.
+
+Sessions Monitor — /(app)/(host)/sessions — Session list.
+
+Earnings — /(app)/(host)/earnings — Revenue/fees/commissions.
+
+Payouts — /(app)/(host)/payouts — Payout list/status.
+
+Top-up Customer (Cash-in) — /(app)/(host)/cashin — Credit user wallet.
+
+Cash-in History — /(app)/(host)/cashin/history — Cash-in records.
+
+Shared
+
+Settings — /(app)/(shared)/settings — Language/cache/notifications.
+
+Support — /(app)/(shared)/support — WhatsApp/phone + FAQ.
+
+Legal — /(app)/(shared)/legal — Terms/AUP/Privacy.
+
+About — /(app)/(shared)/about — Version/build.
+
+Modals
+
+Plan Picker — /(modal)/plan-picker — Select plan.
+
+QR Fullscreen — /(modal)/qr — Voucher/top-up QR fullscreen.
+
+6) Screen-by-screen Specs (for EVERY screen)
+6.1 Welcome / Mode Select
+
+Purpose: Language selection and short intro.
+
+Primary actions: Select language; Continue as User; Continue as Host.
+
+Layout regions: Header (logo), Main (value props), Footer (CTAs).
+
+Key components: LanguageToggle, FeatureCard, PrimaryButton.
+
+Data shown: “Achetez un pass Wi-Fi près de vous.” / “Partagez votre Wi-Fi et gagnez.”
+
+Validation rules: None.
+
+States: Loading n/a; Empty n/a; Error n/a; Success → Phone Number.
+
+Navigation: Entry → Phone Number.
+
+Accessibility notes: 44px targets; toggle announced; clear CTA labels.
+
+6.2 Phone Number
+
+Purpose: Capture phone for OTP.
+
+Primary actions: Enter phone; Continue; Change country code.
+
+Layout regions: Header back; Main form; Footer continue.
+
+Key components: PhoneInput, HelperText, Toast.
+
+Data shown: Default +226; example formatting.
+
+Validation rules: Required; numeric; length; rate-limit messaging.
+
+States: Loading (request OTP); Empty n/a; Error (invalid/rate-limited); Success → OTP.
+
+Navigation: From Welcome → OTP Verify.
+
+Accessibility notes: Label + hint; error announced; numeric keypad.
+
+6.3 OTP Verify
+
+Purpose: Verify OTP and authenticate session.
+
+Primary actions: Enter code; Verify; Resend.
+
+Layout regions: Header; Main OTP; Footer actions.
+
+Key components: OTPInput(6), Timer, Toast.
+
+Data shown: Masked phone; resend countdown.
+
+Validation rules: 6 digits; resend cooldown.
+
+States: Loading (verify); Empty n/a; Error (wrong/expired); Success → Profile Setup or App.
+
+Navigation: Phone → OTP → Profile/App.
+
+Accessibility notes: Auto-advance; screen reader “digit 1 of 6”.
+
+6.4 Profile Setup
+
+Purpose: Optional name + accept legal.
+
+Primary actions: Save; Skip; Open Legal.
+
+Layout regions: Header; Main form; Footer.
+
+Key components: TextInput, Checkbox, Link.
+
+Data shown: Name; consent state.
+
+Validation rules: Consent required if enforced.
+
+States: Loading (save); Empty n/a; Error (network); Success → app home.
+
+Navigation: OTP → Profile → User/Host home.
+
+Accessibility notes: Checkbox labeled; links accessible.
+
+6.5 Hotspots Map (Guest allowed)
+
+Purpose: Discover nearby hotspots via GPS pins.
+
+Primary actions: Refresh; Select pin; Change radius.
+
+Layout regions: Header controls; Map; Bottom sheet preview.
+
+Key components: MapView, Marker, BottomSheet, FilterChips, EmptyState.
+
+Data shown: Name, distance, “À partir de 100 XOF”, online badge, landmark snippet.
+
+Validation rules: Location permission; fallback to manual city selection if denied (optional).
+
+States: Loading (fetch); Empty (none nearby); Error (location denied/API); Success (pins).
+
+Navigation: Map → Hotspot Details; tabs to Wallet/History/Support.
+
+Accessibility notes: Provide list alternative; markers have accessible labels.
+
+6.6 Hotspots List (Guest allowed)
+
+Purpose: Low-data discovery list.
+
+Primary actions: Sort; Select hotspot; Refresh.
+
+Layout regions: Header sort/filter; List.
+
+Key components: ListItem, Badge, Skeleton, EmptyState.
+
+Data shown: Same as map rows.
+
+Validation rules: None.
+
+States: Loading; Empty; Error; Success.
+
+Navigation: List → Hotspot Details.
+
+Accessibility notes: Entire row tappable; announces distance + price.
+
+6.7 Hotspot Details
+
+Purpose: Display hotspot info (GPS + landmark) and host-defined plans.
+
+Primary actions: Choose plan; Buy; Open Connect Help.
+
+Layout regions: Header; Main details; Plans; Sticky CTA.
+
+Key components: PlanCard, StatusPill, InfoRow, CTAButton.
+
+Data shown: Hotspot name; landmark text; plan list (duration/data/price); online state.
+
+Validation rules: Plan active; hotspot online (or allow pre-buy with warning).
+
+States: Loading (plans); Empty (no plans); Error; Success.
+
+Navigation: Details → Plan Picker → Payment Method.
+
+Accessibility notes: Plan cards have radio semantics; CTA announces price.
+
+6.8 Plan Picker (Modal)
+
+Purpose: Confirm selected plan.
+
+Primary actions: Select plan; View details; Continue.
+
+Layout regions: Modal header; Plan list; Footer.
+
+Key components: RadioCardGroup, PriceSummary, Button.
+
+Data shown: Plan name, seconds, bytes, price XOF.
+
+Validation rules: Exactly one selected.
+
+States: Loading; Empty; Error; Success → Payment Method.
+
+Navigation: Hotspot Details → Plan Picker → Payment Method.
+
+Accessibility notes: Focus trap; close button first.
+
+6.9 Payment Method
+
+Purpose: Choose wallet or mobile money provider.
+
+Primary actions: Pay with Wallet; Pay with Wave; Pay with Orange/Moov.
+
+Layout regions: Header; Methods list; Footer.
+
+Key components: PaymentMethodCard, BalanceBanner, Toast.
+
+Data shown: Wallet balance; plan price; fee note (if shown).
+
+Validation rules: Wallet must have sufficient balance; otherwise disable and show “Recharger”.
+
+States: Loading; Empty n/a; Error (provider unavailable); Success → Payment Status/Success.
+
+Navigation: Plan Picker → Payment Method → Status/Success.
+
+Accessibility notes: Insufficient balance announced; provider buttons labeled.
+
+6.10 Payment Status
+
+Purpose: Handle provider redirect + pending confirmation.
+
+Primary actions: Open provider; “J’ai payé”; Retry.
+
+Layout regions: Header; Status card; Footer actions.
+
+Key components: StatusStepper, Spinner, SupportLink.
+
+Data shown: Amount; provider; reference; timer.
+
+Validation rules: None.
+
+States: Loading (polling); Empty n/a; Error (failed/timeout); Success → Payment Success.
+
+Navigation: Payment Method → Status → Success.
+
+Accessibility notes: Status updates announced; avoid indefinite spinner without guidance.
+
+6.11 Payment Success
+
+Purpose: Show voucher and save offline.
+
+Primary actions: Copy code; Show QR fullscreen; Go to Connect Help.
+
+Layout regions: Header; Voucher card; Footer.
+
+Key components: QRCard, CopyButton, Toast.
+
+Data shown: Voucher code/JWT (masked), expiry, plan summary.
+
+Validation rules: None.
+
+States: Loading (save); Empty n/a; Error (save failed); Success.
+
+Navigation: Success → Voucher Details / Connect Help.
+
+Accessibility notes: Copy announces success; provide text alternative to QR.
+
+6.12 Wallet
+
+Purpose: Show wallet balance, vouchers, and top-up actions.
+
+Primary actions: Show Top-up QR; View top-up requests; Open voucher.
+
+Layout regions: Header; Balance card; Tabs (Vouchers/Requests); List.
+
+Key components: BalanceCard, Tabs, VoucherListItem, EmptyState.
+
+Data shown: Balance in XOF; voucher statuses; pending request count.
+
+Validation rules: None.
+
+States: Loading; Empty; Error; Success.
+
+Navigation: Wallet → Top-up QR / Requests / Voucher Details.
+
+Accessibility notes: Tabs accessible; list items include status.
+
+6.13 Top-up QR
+
+Purpose: Provide a QR/ID for hosts to initiate cash-in.
+
+Primary actions: Fullscreen QR; Copy ID; Share.
+
+Layout regions: Header; QR; Footer.
+
+Key components: QRCode, CopyButton, ShareButton.
+
+Data shown: User identifier; phone masked.
+
+Validation rules: None.
+
+States: Loading; Empty n/a; Error; Success.
+
+Navigation: Wallet → Top-up QR → Wallet.
+
+Accessibility notes: Show ID text under QR.
+
+6.14 Top-up Requests
+
+Purpose: List pending cash-in confirmations (10-minute expiry).
+
+Primary actions: Open request; Refresh; Support.
+
+Layout regions: Header; List.
+
+Key components: RequestRow, ExpiryBadge, EmptyState.
+
+Data shown: Host name, amount, countdown timer, created time.
+
+Validation rules: None.
+
+States: Loading; Empty; Error; Success.
+
+Navigation: Requests → Request Details.
+
+Accessibility notes: Countdown accessible; status announced.
+
+6.15 Top-up Request Details
+
+Purpose: Confirm/deny the top-up.
+
+Primary actions: Confirm; Deny; Report issue.
+
+Layout regions: Header; Detail rows; Footer actions.
+
+Key components: DetailList, PrimaryButton, DestructiveButton, Toast.
+
+Data shown: Amount; host; expiry; policy note “Non remboursable en espèces”.
+
+Validation rules: Must be before expiry; active session.
+
+States: Loading (confirm); Empty n/a; Error (expired/network); Success (balance updated).
+
+Navigation: Details → Wallet (updated) or Support.
+
+Accessibility notes: Destructive action requires confirmation dialog.
+
+6.16 Voucher Details
+
+Purpose: Display a voucher for use.
+
+Primary actions: Copy; Fullscreen QR; Connect Help.
+
+Layout regions: Header; Voucher card; Footer.
+
+Key components: QRCard, StatusBadge, CopyButton.
+
+Data shown: Expiry, plan, “1 appareil uniquement” note.
+
+Validation rules: None.
+
+States: Loading; Empty n/a; Error; Success.
+
+Navigation: Wallet/History → Voucher Details → Connect Help.
+
+Accessibility notes: High-contrast code block; copy feedback.
+
+6.17 History
+
+Purpose: Purchases/receipts and wallet ledger summary (user-facing).
+
+Primary actions: Filter; Open item; Re-buy.
+
+Layout regions: Header filters; List.
+
+Key components: SegmentedControl, HistoryRow, EmptyState.
+
+Data shown: Date, amount, hotspot, method (wallet/provider).
+
+Validation rules: Filter ranges valid.
+
+States: Loading; Empty; Error; Success.
+
+Navigation: History → Voucher Details / Hotspot Details.
+
+Accessibility notes: Each row includes date+amount+status.
+
+6.18 Connect Help
+
+Purpose: Guide captive portal connection reliably.
+
+Primary actions: Copy code; Open Wi-Fi settings; Troubleshoot portal.
+
+Layout regions: Header; Step list; Footer.
+
+Key components: StepperList, FAQAccordion, Buttons.
+
+Data shown: SSID, steps, “si le portail ne s’ouvre pas…”
+
+Validation rules: None.
+
+States: Loading n/a; Empty n/a; Error n/a; Success n/a.
+
+Navigation: Payment Success/Voucher Details → Connect Help.
+
+Accessibility notes: Steps readable; actions clearly labeled.
+
+6.19 Host Start
+
+Purpose: Explain host program and start KYC.
+
+Primary actions: Start KYC; View requirements; Support.
+
+Layout regions: Header; Main pitch; Footer CTA.
+
+Key components: InfoCards, FeeSummaryCard.
+
+Data shown: Platform fee + cash-in commission policy summary.
+
+Validation rules: None.
+
+States: Loading; Empty n/a; Error; Success → KYC.
+
+Navigation: Host tab → KYC.
+
+Accessibility notes: Clear headings; short paragraphs.
+
+6.20 KYC
+
+Purpose: Host identity + payout setup (required for cash-in).
+
+Primary actions: Submit; Save draft; Edit payout.
+
+Layout regions: Header; Form sections; Footer submit.
+
+Key components: TextInput, Select, Upload (optional), Toast.
+
+Data shown: Name, city, payout provider, payout number.
+
+Validation rules: Required fields; valid payout number; agreement checkbox.
+
+States: Loading (submit); Empty n/a; Error; Success (pending/approved).
+
+Navigation: KYC → Dashboard (pending/approved).
+
+Accessibility notes: Inline error text; focus on first invalid field.
+
+6.21 Host Dashboard
+
+Purpose: Host KPIs, hotspot status, quick actions.
+
+Primary actions: Manage hotspot; Top-up customer; View payouts.
+
+Layout regions: Header status; KPI grid; Actions.
+
+Key components: StatusPill, KPICards, QuickActionButtons.
+
+Data shown: Online/offline, today sales, cash-in count, net earnings.
+
+Validation rules: None.
+
+States: Loading; Empty (no hotspot yet); Error; Success.
+
+Navigation: Dashboard → Claim/Setup/Management/Cash-in/Payouts.
+
+Accessibility notes: KPI labels included; status announced.
+
+6.22 Claim Router
+
+Purpose: Bind router to host account.
+
+Primary actions: Scan QR; Manual entry; Retry.
+
+Layout regions: Header; Camera; Footer.
+
+Key components: QRScanner, ManualForm, Toast.
+
+Data shown: router_serial, claim_token (not exposed fully).
+
+Validation rules: token valid; not already claimed.
+
+States: Loading; Empty n/a; Error (invalid/claimed); Success → Setup.
+
+Navigation: Dashboard/Start → Claim → Setup.
+
+Accessibility notes: Camera permission flow; accessible fallback.
+
+6.23 Hotspot Setup
+
+Purpose: Configure hotspot metadata and publish location.
+
+Primary actions: Save; Set landmark; Set hours/limits.
+
+Layout regions: Header; Form; Footer.
+
+Key components: TextInput, MapPinPicker, TimePicker, NumericInput.
+
+Data shown: GPS pin preview + landmark text.
+
+Validation rules: Name required; landmark required; coords required; max clients range.
+
+States: Loading; Empty n/a; Error; Success → Management.
+
+Navigation: Claim → Setup → Management.
+
+Accessibility notes: Map pin has list alternative (“Use current location”).
+
+6.24 Hotspot Management
+
+Purpose: Sales toggle + host-defined plans management.
+
+Primary actions: Toggle sales; Add/edit plan; View sessions.
+
+Layout regions: Header; Sales toggle; Plans list; Secondary section.
+
+Key components: Toggle, PlanRows, Button, ConfirmationDialog.
+
+Data shown: Plans with price/duration/data; last heartbeat; online status.
+
+Validation rules: Plan constraints enforced in editor.
+
+States: Loading; Empty (no plans); Error; Success.
+
+Navigation: Management → Plan Editor / Sessions.
+
+Accessibility notes: Toggle state announced; confirmations for destructive actions.
+
+6.25 Plan Editor (Modal)
+
+Purpose: Create/update host-defined plan.
+
+Primary actions: Save; Delete; Cancel.
+
+Layout regions: Modal header; Form; Footer.
+
+Key components: Inputs, Selects, HelperText.
+
+Data shown: Name, seconds, bytes (optional), price XOF, active.
+
+Validation rules: seconds > 0; price ≥ 0; name required.
+
+States: Loading; Empty n/a; Error; Success.
+
+Navigation: Management ↔ Plan Editor.
+
+Accessibility notes: Focus trap; first field focused on open.
+
+6.26 Sessions Monitor
+
+Purpose: View sessions (approx/delayed) and device binding outcomes.
+
+Primary actions: Filter; Open session; Report issue.
+
+Layout regions: Header filters; List.
+
+Key components: DatePicker, SessionRow, EmptyState.
+
+Data shown: start/end, bytes, device (masked MAC hash), voucher id.
+
+Validation rules: Date ranges valid.
+
+States: Loading; Empty; Error; Success.
+
+Navigation: Dashboard/Management → Sessions.
+
+Accessibility notes: Rows read start+duration+usage.
+
+6.27 Earnings
+
+Purpose: Revenue/fees/net + cash-in commission summary.
+
+Primary actions: Change period; View breakdown; Go payouts.
+
+Layout regions: Header; Summary cards; Breakdown list.
+
+Key components: PeriodPicker, KPICards, BreakdownRows.
+
+Data shown: Gross sales, platform fee, net, cash-in commission earned.
+
+Validation rules: None.
+
+States: Loading; Empty; Error; Success.
+
+Navigation: Earnings → Payouts.
+
+Accessibility notes: Charts optional; always provide text breakdown.
+
+6.28 Payouts
+
+Purpose: Payout list and status tracking.
+
+Primary actions: View payout; Update payout number; Support.
+
+Layout regions: Header; List.
+
+Key components: PayoutRow, StatusBadge, EmptyState.
+
+Data shown: Amount, status, created date.
+
+Validation rules: payout number format.
+
+States: Loading; Empty; Error; Success.
+
+Navigation: Earnings/Dashboard → Payouts.
+
+Accessibility notes: Status announced; failure includes clear steps.
+
+6.29 Top-up Customer (Cash-in)
+
+Purpose: Host initiates wallet credit after collecting cash.
+
+Primary actions: Scan user QR; Enter phone; Submit amount.
+
+Layout regions: Header; User lookup; Amount input; Footer submit.
+
+Key components: QRScanner, PhoneInput, NumericInput, ConfirmationDialog.
+
+Data shown: User masked identifier; amount; expiry “10 minutes”.
+
+Validation rules: amount > 0; host KYC approved; daily limit checks (assumption); user exists.
+
+States: Loading; Empty n/a; Error (limit/invalid user); Success (pending confirmation).
+
+Navigation: Cash-in → Cash-in History; user receives request.
+
+Accessibility notes: Numeric keypad; confirmation step before submit.
+
+6.30 Cash-in History
+
+Purpose: List cash-in records and statuses.
+
+Primary actions: Filter; Open record; Re-initiate.
+
+Layout regions: Header filters; List.
+
+Key components: HistoryRow, StatusBadge, EmptyState.
+
+Data shown: user masked, amount, status (pending/confirmed/expired/denied).
+
+Validation rules: None.
+
+States: Loading; Empty; Error; Success.
+
+Navigation: From Cash-in / Dashboard.
+
+Accessibility notes: Status announced; expiry shown for pending.
+
+6.31 Settings
+
+Purpose: Language, notifications, cache, diagnostics.
+
+Primary actions: Change language; Clear cache; Toggle notifications.
+
+Layout regions: Header; Settings list.
+
+Key components: SettingsRow, Toggle, ConfirmationDialog.
+
+Data shown: Current language.
+
+Validation rules: None.
+
+States: Loading; Empty n/a; Error; Success.
+
+Navigation: From any tab.
+
+Accessibility notes: Toggle labels and states announced.
+
+6.32 Support
+
+Purpose: FAQs + WhatsApp/phone contact.
+
+Primary actions: Open WhatsApp; Call; Submit issue.
+
+Layout regions: Header; FAQ; Contact CTAs.
+
+Key components: Accordion, ContactButtons, OptionalForm.
+
+Data shown: Support hours and contacts.
+
+Validation rules: Issue form requires message.
+
+States: Loading; Empty n/a; Error; Success.
+
+Navigation: From anywhere; deep link.
+
+Accessibility notes: Links clearly labeled; phone/WhatsApp described.
+
+6.33 Legal
+
+Purpose: Terms/AUP/Privacy; non-refundable wallet policy.
+
+Primary actions: View sections; Accept updates (if needed); Share.
+
+Layout regions: Header; Content viewer.
+
+Key components: MarkdownViewer/WebView.
+
+Data shown: Version/date; key policy highlights.
+
+Validation rules: None.
+
+States: Loading; Empty n/a; Error; Success.
+
+Navigation: Onboarding/Settings.
+
+Accessibility notes: Scalable text; structured headings.
+
+6.34 About
+
+Purpose: Version/build info and acknowledgements.
+
+Primary actions: Copy version; View acknowledgements; Diagnostics.
+
+Layout regions: Header; Info cards.
+
+Key components: InfoRow, CopyButton.
+
+Data shown: App version, environment.
+
+Validation rules: None.
+
+States: Loading n/a; Empty n/a; Error n/a; Success n/a.
+
+Navigation: Settings → About.
+
+Accessibility notes: Copy announced.
+
+6.35 QR Fullscreen (Modal)
+
+Purpose: Fullscreen QR display for voucher/top-up.
+
+Primary actions: Close; Copy; Brightness boost (optional).
+
+Layout regions: Modal header; QR; Footer.
+
+Key components: QRView, CloseButton.
+
+Data shown: QR type label (“Voucher” / “Rechargement”).
+
+Validation rules: None.
+
+States: Loading; Empty n/a; Error; Success.
+
+Navigation: Caller → QR modal → caller.
+
+Accessibility notes: Close first focus; text fallback.
+
+7) Reusable Components Inventory
+
+Button
+
+Props: label, onPress, intent, size, icon?, loading?, disabled?
+
+Variants: primary/secondary/ghost/destructive
+
+States: default/pressed/loading/disabled
+
+Input (Text/Numeric/Phone)
+
+Props: label, value, onChange, placeholder, keyboardType, error?, helperText?
+
+Variants: text/numeric/phone
+
+States: default/focus/error/disabled
+
+OTPInput
+
+Props: length, onComplete, error?
+
+Variants: 4/6
+
+States: focus/error
+
+Select
+
+Props: label, options, value, onChange
+
+Variants: modal/select-sheet
+
+States: closed/open/error/disabled
+
+Toggle
+
+Props: label, value, onChange, disabled?
+
+Variants: default
+
+States: on/off/disabled
+
+Modal / Drawer / BottomSheet
+
+Props: open, title, onClose, children
+
+Variants: half/full
+
+States: open/closed
+
+Toast
+
+Props: tone, message
+
+Variants: success/error/info/warn
+
+States: visible/hidden
+
+Card / KPI Card
+
+Props: title, subtitle?, value?, children
+
+Variants: elevated/subtle
+
+States: normal/skeleton
+
+Badge / StatusPill
+
+Props: tone, text
+
+Variants: online/offline, pending/success/fail
+
+States: normal
+
+EmptyState
+
+Props: title, description, actionLabel?, onAction?
+
+Variants: no-hotspots/no-vouchers/error
+
+States: normal
+
+QR Components
+
+QRCode / QRCard / QRFullscreen
+
+Props: value, label, size
+
+Variants: voucher/topup
+
+States: loading/error
+
+ListItem (Hotspot/Voucher/History)
+
+Props: title, subtitle, meta, status?
+
+Variants: hotspot/voucher/history/request
+
+States: normal/pressed/disabled
+
+PlanCard
+
+Props: name, duration, dataCap, price, selected
+
+Variants: time/data combo
+
+States: selected/unselected/disabled
+
+CountdownBadge
+
+Props: expiresAt
+
+Variants: normal/urgent
+
+States: active/expired
+
+8) Design System
+Color
+
+Primary: #6366F1
+
+Secondary: #10B981
+
+Accent: #F59E0B
+
+Neutrals
+
+50 #F8FAFC
+
+100 #F1F5F9
+
+200 #E2E8F0
+
+300 #CBD5E1
+
+500 #64748B
+
+700 #334155
+
+900 #0F172A
+
+Backgrounds
+
+Default: Neutral 50
+
+Elevated: #FFFFFF
+
+Subtle: Neutral 100
+
+Text
+
+Primary: Neutral 900
+
+Secondary: Neutral 700
+
+Muted: Neutral 500
+
+Inverse: #FFFFFF
+
+Status
+
+Success: bg #ECFDF5, text #065F46
+
+Error: bg #FEF2F2, text #991B1B
+
+Warning: bg #FFFBEB, text #92400E
+
+Info: bg #EFF6FF, text #1D4ED8
+
+Focus ring
+
+#A5B4FC, 2px outline + offset
+
+Typography
+
+Font family: Manrope (heading/body) with system fallback
+
+Scale: H1 28 / H2 22 / H3 18 / H4 16 / Body 14 / Small 12 / Caption 11
+
+Weights: 400 / 500 / 600 / 700
+
+Line heights: Titles 1.25, body 1.45–1.5
+
+Spacing & layout
+
+Base unit: 4px
+
+Scale: 4, 8, 12, 16, 20, 24, 32
+
+Radii: sm 10 / md 16 / lg 24
+
+Elevation: subtle shadow only (performance-friendly)
+
+Interaction
+
+Press: opacity 0.9 + scale 0.98
+
+Disabled: reduced opacity + no press
+
+Motion: 120–180ms ease-out, minimal animations
+
+9) Content Style Guide
+
+Voice/Tone: Clear, reassuring, action-oriented, French-first.
+
+Buttons: Verb + object
+
+“Acheter un pass”, “Recharger un client”, “Confirmer le crédit”
+
+Form labels: Simple nouns
+
+“Montant (XOF)”, “Point de repère”, “Numéro Wave”
+
+Helper text: One line, practical
+
+“Le crédit n’est pas remboursable en espèces.”
+
+Empty states: Explain + next step
+
+“Aucun hotspot proche. Augmentez le rayon ou réessayez plus tard.”
+
+Error messages: Clear + actionable
+
+“Rechargement expiré. Demandez à l’hôte de recommencer.”
+
+10) Acceptance Criteria
+
+ All IA screens implemented and reachable.
+
+ Guests can discover hotspots (map/list) without login.
+
+ Host-defined plans can be created/edited and displayed on Hotspot Details.
+
+ Purchase journey works end-to-end (provider payment and wallet payment).
+
+ Cash-in journey works end-to-end:
+
+ Host initiates cash-in
+
+ User confirms within 10 minutes
+
+ Wallet balance updates
+
+ One-device-per-voucher enforced (voucher cannot be reused by another device).
+
+ Every data surface has loading/empty/error states.
+
+ All interactive components have pressed/disabled/loading states.
+
+ Accessibility:
+
+ Inputs have labels and accessible error text
+
+ Tap targets ≥ 44px
+
+ QR screens provide text fallback
+
+ Offline-first:
+
+ Vouchers available offline in Wallet
+
+ Connect Help works offline
+
+11) Open Questions / Assumptions
+Open Questions (remaining)
+
+Rates: What are the exact percentages for platform fee (on voucher sales) and cash-in commission (paid to cash-in host)?
+
+Limits: Daily cash-in limits per host and per user (to reduce fraud) — confirm numbers.
+
+Host hardware: Can we assume hosts have smartphones with camera for QR scan (or do we need USSD/SMS host flow)?
+
+Pilot: Confirm pilot cities, target hotspot count, and default discovery radius by city density.
+
+Assumptions (until confirmed)
+
+Platform fee applies to voucher sales (wallet + mobile money).
+
+Cash-in commission is paid to the cash-in host (funded from platform fee pool or a configurable budget), while the user wallet is credited with the full cash amount.
+
+Initial limits (adjustable): per-host cash-in 50,000 XOF/day; per-user wallet top-up 20,000 XOF/day.
+
+Hosts use smartphones in MVP; manual phone entry remains as fallback.
+
+GPS pins are stored, and landmark-only text is required for usability; privacy jitter is not applied unless later requested.
